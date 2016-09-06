@@ -1,32 +1,39 @@
 var net = require('net');
 var fs = require('fs');
 
-console.log("Starting");
+console.log("<Starting>");
 
 var server = net.createServer((socket) => {
-    console.log("Connection Made");
+    var parseFreq = 10;
+    var streamOn = false;
+    var timer;
+    var log = fs.readFileSync("streamBits.txt").toString().split("\r\n\r\n");
+    var logIterator = iterator(log);
+
+    console.log("<Connection Made>");
     socket.on('data', (data) => {
         handleMessage(data.toString());
     });
     socket.on('end', () => {
-        console.log("Disconnected");
+        console.log("<Socket Disconnected>");
+    });
+    socket.on('error', (err) => {
+        console.log("<Error: " + err + ">");
+        clearInterval(timer);
     });
 
-    var parseFreq = 10;
-    var streamOn = false;
-    var timer;
-
-    var log = fs.readFileSync("streamBits.txt").toString().split("\r\n\r\n");
-    var logIterator = iterator(log);
-
     function handleMessage(message) {
-        console.log("Received: " + message);
+        console.log("<Received: " + message + ">");
         message = message.toUpperCase();
         if (message.includes("VER")) {
             sendAndLog("EVS300 Node Simulator");
         }
         else if (message.includes("MEASTIME")) {
             parseFreq = parseInt(message.slice(9));
+            if (streamOn) {
+                clearInterval(timer);
+                startStream();
+            }
             sendAndLog("READY.");
         }
         else if (message.includes("STOPSTREAM")) {
@@ -38,13 +45,16 @@ var server = net.createServer((socket) => {
         }
         else if (message.includes("STREAM FULL, 1")) {
             streamOn = true;
+            sendAndLog("READY.");
             startStream();
+        }
+        else if (message === "\r\n") {
+            // No response to empty messages
         }
         else {
             sendAndLog("READY.");
         }
     }
-
 
     function sendAndLog(message) {
         if (socket.write(message + '\r\n')) {
@@ -71,7 +81,6 @@ var server = net.createServer((socket) => {
             }
         }
     }
-
 }).on('error', (err) => {
     throw err;
 });
